@@ -18,21 +18,33 @@
     "name": "Get API Key",
     "url": "https://ln-breeze.vercel.app"
   },
-  "navigation": [
-    {
-      "group": "Getting Started",
-      "pages": ["introduction", "quickstart", "authentication"]
-    },
-    {
-      "group": "API Reference",
-      "pages": [
-        "api-reference/auth/register",
-        "api-reference/invoices/create",
-        "api-reference/invoices/status",
-        "api-reference/wallet/info"
-      ]
-    }
-  ],
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["introduction", "quickstart", "authentication"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/auth/register",
+              "api-reference/invoices/create",
+              "api-reference/invoices/status",
+              "api-reference/wallet/info"
+            ]
+          }
+        ]
+      }
+    ]
+  },
   "api": {
     "baseUrl": "https://ln-breeze.vercel.app",
     "auth": {
