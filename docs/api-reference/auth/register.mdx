@@ -1,41 +1,52 @@
 ---
 title: "Register"
 api: "POST /api/v1/auth/register"
-description: "Exchange your LNbits credentials for an LN-Breeze API key."
+description: "Exchange your LNbits credentials for a signed LN-Breeze API key."
 ---
 
-## Request
+## Overview
+
+This is the only endpoint that does not require an API key. You call it once per wallet to receive your Bearer token. From that point on, every other API call uses that token — your raw LNbits credentials never need to travel over the network again.
+
+LN-Breeze verifies your credentials against LNbits before issuing a key. If the credentials are invalid, or if the LNbits instance is unreachable, no key is issued.
+
+## Request body
 
 <ParamField body="lnbitsUrl" type="string" required>
-  The base URL of your LNbits instance. Must be HTTPS.
-  
-  Example: `https://demo.lnbits.com`
+  The base URL of your LNbits instance. Must be a public HTTPS address.
+
+  Accepted: `https://demo.lnbits.com`
+
+  Rejected: `http://...`, `localhost`, private IP ranges (`10.x`, `192.168.x`, `172.16–31.x`), cloud metadata endpoints
 </ParamField>
 
 <ParamField body="invoiceKey" type="string" required>
-  Your LNbits Invoice/Read Key. Found in your wallet under API Info.
+  Your LNbits Invoice/Read Key. This is the read-only key that allows creating and checking invoices. Found in your wallet under **API Info → Invoice/Read Key**.
+
+  This is intentionally not the Admin Key — LN-Breeze only ever needs read and invoice permissions.
 </ParamField>
 
 <ParamField body="walletId" type="string" required>
-  Your LNbits Wallet ID. Found in your wallet under API Info.
+  Your LNbits Wallet ID. Found in your wallet under **API Info → Wallet ID**.
 </ParamField>
 
 ## Response
 
 <ResponseField name="apiKey" type="string">
-  Your signed API key. Include this as a Bearer token in all subsequent requests.
-  Store it securely — it will not be shown again.
+  A signed JWT containing your sealed LNbits credentials. Use this as the Bearer token in all subsequent requests.
+
+  Store it immediately — it is not saved by LN-Breeze and cannot be retrieved later. If you lose it, call this endpoint again to get a new one.
 </ResponseField>
 
 <ResponseField name="walletName" type="string">
-  The name of the wallet your API key is tied to, as returned by LNbits.
+  The display name of your LNbits wallet, as returned by LNbits on verification. Useful for confirming you connected the right wallet.
 </ResponseField>
 
 <ResponseField name="note" type="string">
-  A reminder to store your API key securely.
+  A reminder that the key will not be shown again.
 </ResponseField>
 
-## Example
+## Examples
 
 <CodeGroup>
 
@@ -44,8 +55,8 @@ curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "lnbitsUrl": "https://demo.lnbits.com",
-    "invoiceKey": "a1b2c3d4e5f6...",
-    "walletId": "f6e5d4c3b2a1..."
+    "invoiceKey": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "walletId": "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3"
   }'
 ```
 
@@ -55,27 +66,31 @@ const res = await fetch("https://ln-breeze.vercel.app/api/v1/auth/register", {
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     lnbitsUrl: "https://demo.lnbits.com",
-    invoiceKey: "a1b2c3d4e5f6...",
-    walletId: "f6e5d4c3b2a1...",
+    invoiceKey: process.env.LNBITS_INVOICE_KEY,
+    walletId: process.env.LNBITS_WALLET_ID,
   }),
 });
 
-const { apiKey } = await res.json();
+const { apiKey, walletName } = await res.json();
+// Store apiKey in your environment — do not log it
+console.log(`Connected to: ${walletName}`);
 ```
 
 ```python Python
-import requests
+import requests, os
 
 res = requests.post(
   "https://ln-breeze.vercel.app/api/v1/auth/register",
   json={
     "lnbitsUrl": "https://demo.lnbits.com",
-    "invoiceKey": "a1b2c3d4e5f6...",
-    "walletId": "f6e5d4c3b2a1...",
+    "invoiceKey": os.environ["LNBITS_INVOICE_KEY"],
+    "walletId": os.environ["LNBITS_WALLET_ID"],
   }
 )
 
-api_key = res.json()["apiKey"]
+data = res.json()
+api_key = data["apiKey"]
+# Write api_key to your secrets manager or .env file
 ```
 
 </CodeGroup>
@@ -84,7 +99,7 @@ api_key = res.json()["apiKey"]
 
 ```json
 {
-  "apiKey": "eyJhbGciOiJIUzI1NiJ9.eyJsb...",
+  "apiKey": "eyJhbGciOiJIUzI1NiJ9.eyJsb25iaXRzVXJsIjoiaHR0cHM...",
   "walletName": "My Shop Wallet",
   "note": "Store this API key securely — it will not be shown again."
 }
@@ -92,9 +107,9 @@ api_key = res.json()["apiKey"]
 
 ## Error responses
 
-| Status | Error | Reason |
+| Status | Message | What happened |
 |---|---|---|
-| `400` | `lnbitsUrl, invoiceKey, and walletId are required` | One or more fields missing |
-| `400` | `Invalid LNbits URL` | URL is not a valid public HTTPS address |
-| `401` | `Invalid credentials or could not reach LNbits` | Credentials rejected by LNbits |
-| `500` | `Registration failed` | Unexpected server error |
+| `400` | `lnbitsUrl, invoiceKey, and walletId are required` | One or more fields are missing from the request body |
+| `400` | `Invalid LNbits URL` | The URL is not a public HTTPS address — localhost, private IPs, and HTTP are blocked |
+| `401` | `Invalid credentials or could not reach LNbits` | LNbits rejected the credentials, or the instance was unreachable |
+| `500` | `Registration failed` | Unexpected server error — try again |

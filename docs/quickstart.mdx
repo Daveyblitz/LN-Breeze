@@ -1,21 +1,25 @@
 ---
 title: "Quickstart"
-description: "Create your first Lightning invoice in under 5 minutes."
+description: "From zero to your first paid Lightning invoice in under five minutes."
 ---
 
-## Step 1 — Get your LNbits credentials
+This guide walks you through the complete flow: getting an API key, creating an invoice, and confirming payment. By the end you will have made three real API calls and understand exactly how the pieces fit together.
 
-Go to [demo.lnbits.com](https://demo.lnbits.com) and create a free wallet, or use an existing one.
+## What you need before starting
 
-From your wallet dashboard you need three things:
+An LNbits wallet. If you do not have one yet, go to [demo.lnbits.com](https://demo.lnbits.com), click **Create Account**, and open a wallet. Then find these two values under **API Info** in your wallet dashboard:
 
-| Value | Where to find it |
+| Value | What it looks like |
 |---|---|
-| `lnbitsUrl` | The base URL of your LNbits instance, e.g. `https://demo.lnbits.com` |
-| `invoiceKey` | In your wallet → API Info → Invoice/Read Key |
-| `walletId` | In your wallet → API Info → Wallet ID |
+| **Invoice Key** | A 32-character hex string — read-only access to your wallet |
+| **Wallet ID** | Another 32-character hex string — identifies your specific wallet |
+| **LNbits URL** | The base URL of your instance, e.g. `https://demo.lnbits.com` |
 
-## Step 2 — Register for an API key
+You will use these once to register. After that, everything goes through your API key.
+
+## Step 1 — Register and get your API key
+
+Send your LNbits credentials to the register endpoint. LN-Breeze verifies them against LNbits, then wraps them into a signed token and hands it back as your API key.
 
 ```bash
 curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
@@ -27,23 +31,25 @@ curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
   }'
 ```
 
-Response:
+You will get back something like:
 
 ```json
 {
-  "apiKey": "eyJhbGciOiJIUzI1NiJ9...",
+  "apiKey": "eyJhbGciOiJIUzI1NiJ9.eyJsb25...",
   "walletName": "My Wallet",
   "note": "Store this API key securely — it will not be shown again."
 }
 ```
 
-Save that `apiKey`. Every request from here on uses it.
+**Save that `apiKey`.** It is your permanent credential for this wallet. Treat it like a password — store it in an environment variable, never hardcode it, never expose it in client-side JavaScript.
 
-## Step 3 — Create a Lightning invoice
+## Step 2 — Create a Lightning invoice
+
+Now use your API key to create an invoice. This generates a BOLT11 payment request that any Lightning wallet can pay.
 
 ```bash
 curl -X POST https://ln-breeze.vercel.app/api/v1/invoices \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..." \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "amount": 1000,
@@ -51,30 +57,34 @@ curl -X POST https://ln-breeze.vercel.app/api/v1/invoices \
   }'
 ```
 
-Response:
-
 ```json
 {
-  "paymentRequest": "lnbc10u1p...",
-  "paymentHash": "a3f9bc2d...",
+  "paymentRequest": "lnbc10u1pn2k3j4pp5a3f9bc...",
+  "paymentHash": "a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
   "amount": 1000,
   "description": "Payment for logo design",
   "expiresAt": "2026-07-10T15:30:00.000Z"
 }
 ```
 
-The `paymentRequest` is the BOLT11 string — show it as a QR code or let your customer copy it into any Lightning wallet.
+The `paymentRequest` is the string that becomes the QR code. The `paymentHash` is what you use to check whether it was paid. The invoice expires after 10 minutes.
 
-## Step 4 — Check if it was paid
+## Step 3 — Let someone pay it
 
-Poll this endpoint until `paid` is `true`:
+Take the `paymentRequest` string and either:
+- Encode it as a QR code and show it to your customer
+- Let your customer copy-paste it into any Lightning wallet (Phoenix, Wallet of Satoshi, BlueWallet, etc.)
+
+For testing, you can open a second LNbits wallet, go to **Send**, and paste the BOLT11 string directly.
+
+## Step 4 — Confirm payment
+
+Poll the status endpoint until `paid` comes back `true`:
 
 ```bash
 curl https://ln-breeze.vercel.app/api/v1/invoices/a3f9bc2d... \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+  -H "Authorization: Bearer YOUR_API_KEY"
 ```
-
-Response:
 
 ```json
 {
@@ -83,4 +93,14 @@ Response:
 }
 ```
 
-That is the full integration. Register once, create invoices, poll for payment.
+In a real application you would poll this every 2–3 seconds after showing the QR code, then trigger your fulfilment flow the moment `paid` returns `true`. See the [status endpoint reference](/api-reference/invoices/status) for polling examples in JavaScript and Python.
+
+<Note>
+  The invoice expires 10 minutes after creation. If `paid` is still `false` after expiry, stop polling and generate a new invoice if the customer still wants to pay.
+</Note>
+
+## You are done
+
+That is the full integration. Register once, create invoices on demand, poll for confirmation. Everything else — credential security, LNbits communication, CORS — is handled for you.
+
+Next: read the [Authentication](/authentication) page to understand how API keys work and how to handle them safely in your application.

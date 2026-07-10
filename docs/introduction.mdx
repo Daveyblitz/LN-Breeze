@@ -1,38 +1,52 @@
 ---
 title: "Introduction"
-description: "Accept Bitcoin Lightning payments in your app without running a node."
+description: "A REST API for accepting Bitcoin Lightning payments — without running a node, managing channels, or touching the command line."
 ---
 
-## What is LN-Breeze?
+## The problem
 
-LN-Breeze is a REST API that lets any developer add Lightning Network payment support to their application in minutes.
+Accepting Bitcoin payments on the web is harder than it should be. On-chain Bitcoin is slow — ten-minute confirmation times and unpredictable fees make it impractical for anything that needs to feel instant. The Lightning Network solves both problems: payments settle in seconds for fractions of a cent.
 
-You bring your own [LNbits](https://lnbits.com) wallet. LN-Breeze handles everything else — creating invoices, checking payment status, and sending invoice emails to customers.
+But building on Lightning directly means running a node, managing payment channels, handling liquidity, and dealing with infrastructure that assumes you are a systems engineer. Most developers just want to generate an invoice and know when it gets paid. The plumbing should not be their problem.
 
-## What you can build
+That is what LN-Breeze is for.
 
-- **E-commerce checkout** — generate a Lightning invoice at checkout, poll for payment confirmation
-- **Donation buttons** — let visitors pay in sats with a scannable QR code
-- **SaaS billing** — invoice customers in Bitcoin over Lightning
-- **Point of sale** — generate invoices on demand, detect payment in real time
+## What LN-Breeze does
 
-## How it works
+LN-Breeze is a thin, secure API layer that sits between your application and [LNbits](https://lnbits.com) — an open-source Lightning wallet server. You bring your own LNbits wallet. LN-Breeze handles the API calls, secures your credentials, and gives you clean endpoints to build on.
+
+Three things, done well:
+
+- **Create invoices** — generate a BOLT11 Lightning invoice for any satoshi amount with a single POST request
+- **Detect payment** — poll for confirmation or let your own WebSocket implementation react in real time
+- **Stay secure** — your LNbits credentials never leave the server; developers authenticate with signed API keys, not raw wallet keys
+
+## Who this is for
+
+LN-Breeze is for developers who want to add Lightning payment support to a web app, e-commerce store, SaaS product, or point-of-sale system — without becoming Lightning infrastructure engineers in the process.
+
+If you can make an HTTP request, you can accept Bitcoin Lightning payments.
+
+## How the API works
 
 ```
-Your app  →  POST /api/v1/invoices  →  LN-Breeze  →  LNbits
-                                                         ↓
-Your app  ←  { paymentRequest, paymentHash }  ←  LN-Breeze
+Your app → POST /api/v1/invoices → LN-Breeze → LNbits
+                                                   ↓
+                                        invoice created
 
-Customer scans QR code and pays
+Customer scans QR code, pays from any Lightning wallet
 
-Your app  →  GET /api/v1/invoices/:hash  →  LN-Breeze  →  LNbits
-Your app  ←  { paid: true }  ←  LN-Breeze
+Your app → GET /api/v1/invoices/:hash → LN-Breeze → LNbits
+                                                        ↓
+Your app ← { paid: true } ←────────────────────────────┘
 ```
 
-LN-Breeze sits between your app and LNbits. Your LNbits credentials never leave the server.
+LN-Breeze proxies calls to LNbits using your credentials — but those credentials are sealed inside a signed token. Neither your Invoice Key nor your Wallet ID is ever exposed in a browser or stored in a database.
 
-## Prerequisites
+## Before you start
 
-- An [LNbits](https://lnbits.com) wallet (free at [demo.lnbits.com](https://demo.lnbits.com))
-- Your LNbits **Invoice Key**, **Wallet ID**, and the **LNbits URL**
-- An LN-Breeze API key (takes 30 seconds — see [Authentication](/authentication))
+You will need one thing: an LNbits wallet.
+
+The fastest way is to go to [demo.lnbits.com](https://demo.lnbits.com), create a free wallet, and grab your **Invoice Key** and **Wallet ID** from the API Info panel. The demo instance works fine for testing and building. For production, consider self-hosting LNbits on your own node.
+
+Once you have those two values, you can get an API key and make your first invoice call in under five minutes. Start with the [Quickstart](/quickstart).

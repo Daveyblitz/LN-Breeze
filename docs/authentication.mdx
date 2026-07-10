@@ -1,15 +1,27 @@
 ---
 title: "Authentication"
-description: "How LN-Breeze API keys work and how to use them."
+description: "How LN-Breeze API keys work, where to store them, and what happens when something goes wrong."
 ---
 
-## Overview
+## The model
 
-LN-Breeze uses **Bearer token authentication**. Your API key is a signed token that contains your LNbits credentials. You register once, receive a key, and include it in every request.
+LN-Breeze uses **Bearer token authentication**. Every request to the API (except registration) must include an `Authorization` header:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Your API key is a JWT — a signed token that contains your LNbits credentials sealed inside it. When you send a request, LN-Breeze opens the token, verifies it has not been tampered with, reads your credentials out, and uses them to talk to LNbits on your behalf. No database lookup, no session — everything the server needs is inside the token.
+
+## Why this approach
+
+The alternative would be storing your LNbits Invoice Key and Wallet ID in a database and looking them up on every request. That creates a target: if the database is compromised, every developer's wallet credentials are exposed at once.
+
+With signed tokens, there is no database of credentials to steal. Your LNbits keys exist in two places: inside your API key (which you hold), and in your LNbits wallet (which you manage). LN-Breeze holds a signing secret — not your credentials.
 
 ## Getting an API key
 
-Send a `POST` request to `/api/v1/auth/register` with your LNbits credentials:
+POST your LNbits credentials to the register endpoint once:
 
 ```bash
 curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
@@ -21,48 +33,72 @@ curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
   }'
 ```
 
-LN-Breeze verifies your credentials against LNbits, then returns a signed API key tied to your wallet.
+LN-Breeze verifies your credentials live against LNbits before issuing the key. If the credentials are wrong or LNbits is unreachable, you get a `401` back with no key issued.
 
-## Using your API key
+## Storing your API key safely
 
-Include it in the `Authorization` header of every request:
-
-```
-Authorization: Bearer YOUR_API_KEY
-```
-
-Example:
+**In a server-side application** — store the key in an environment variable and read it at runtime:
 
 ```bash
-curl https://ln-breeze.vercel.app/api/v1/wallet \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+# .env
+LN_BREEZE_API_KEY=eyJhbGciOiJIUzI1NiJ9...
 ```
 
-## How the key works
+```js
+const apiKey = process.env.LN_BREEZE_API_KEY;
+```
 
-Your API key is a JWT (JSON Web Token). It contains your LNbits credentials, signed with a secret only LN-Breeze knows. When you send a request:
+**Never do this:**
+- Hardcode the key in source code
+- Commit it to a git repository
+- Put it in client-side JavaScript (React components, browser scripts)
+- Log it or include it in error messages
 
-1. LN-Breeze reads the token from your `Authorization` header
-2. Verifies the signature — if it has been tampered with, the request is rejected
-3. Reads your LNbits credentials from inside the token
-4. Makes the LNbits API call on your behalf
+The API key contains your LNbits Invoice Key. Anyone with the token can create invoices on your wallet. It is a sensitive credential.
 
-Your credentials are never stored in a database. Everything needed is inside the token itself.
+## Making authenticated requests
 
-## Security
+<CodeGroup>
 
-- **Store your API key securely** — treat it like a password. Anyone with your key can create invoices on your wallet.
-- **Do not expose it client-side** — keep it in environment variables on your server, not in browser JavaScript.
-- **It does not expire** — if you believe your key has been compromised, re-register with the same credentials to generate a new one.
+```bash cURL
+curl https://ln-breeze.vercel.app/api/v1/wallet \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```js JavaScript
+const res = await fetch("https://ln-breeze.vercel.app/api/v1/wallet", {
+  headers: {
+    Authorization: `Bearer ${process.env.LN_BREEZE_API_KEY}`,
+  },
+});
+```
+
+```python Python
+import requests, os
+
+res = requests.get(
+  "https://ln-breeze.vercel.app/api/v1/wallet",
+  headers={"Authorization": f"Bearer {os.environ['LN_BREEZE_API_KEY']}"}
+)
+```
+
+</CodeGroup>
+
+## Key expiry and rotation
+
+API keys do not expire automatically. This means:
+
+- You do not need to refresh them on a schedule
+- If a key is compromised, it remains valid until you replace it
+
+To rotate your key, simply call the register endpoint again with your LNbits credentials. You will receive a new token. Update your environment variable and redeploy. The old key will still work until you stop using it — there is no remote revocation mechanism, so rotate promptly if you suspect exposure.
 
 ## Error responses
 
-If your API key is missing or invalid, all endpoints return:
+| Scenario | Status | Response |
+|---|---|---|
+| No `Authorization` header | `401` | `{ "error": "Invalid or missing API key" }` |
+| Malformed Bearer token | `401` | `{ "error": "Invalid or missing API key" }` |
+| Token signed with wrong secret | `401` | `{ "error": "Invalid or missing API key" }` |
 
-```json
-{
-  "error": "Invalid or missing API key"
-}
-```
-
-HTTP status: `401 Unauthorized`
+All auth failures return the same generic message. This is intentional — it gives an attacker no information about why their request was rejected.

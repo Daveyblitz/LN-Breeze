@@ -1,36 +1,45 @@
 ---
 title: "Create Invoice"
 api: "POST /api/v1/invoices"
-description: "Generate a BOLT11 Lightning invoice for a given amount."
+description: "Generate a BOLT11 Lightning invoice that any Lightning wallet can pay."
 authMethod: "bearer"
 ---
 
-## Request
+## Overview
+
+This endpoint creates a Lightning invoice for a given amount and description. It returns a BOLT11 payment request string — the standard format used across the entire Lightning Network. Any Lightning wallet (Phoenix, Wallet of Satoshi, BlueWallet, Muun, Zeus, etc.) can pay a BOLT11 invoice.
+
+The invoice expires 10 minutes after creation. If unpaid after that window, a new invoice must be generated. There is no way to extend a Lightning invoice's expiry.
+
+## Request body
 
 <ParamField body="amount" type="integer" required>
-  The invoice amount in **satoshis**. Must be a positive whole number.
-  
-  Example: `1000` (= 1,000 sats)
+  The invoice amount in **satoshis**. Must be a positive whole number — decimals are not valid because satoshis are the smallest unit of Bitcoin on Lightning.
+
+  To convert from other units:
+  - 1 USD ≈ varies (check current rate)
+  - 1 BTC = 100,000,000 satoshis
+  - 1,000 sats ≈ a typical small transaction
 </ParamField>
 
 <ParamField body="description" type="string" required>
-  A short description of what the payment is for. Shown to the payer in their Lightning wallet.
-  
-  Example: `"Payment for logo design"`
+  A short description of the payment. This is included inside the BOLT11 invoice and displayed to the payer in their Lightning wallet when they scan the QR code. Keep it clear and specific — the payer sees this before confirming.
+
+  Example: `"Order #1042 — 2x Coffee"`, `"Monthly subscription — July"`, `"Donation"`
 </ParamField>
 
 ## Response
 
 <ResponseField name="paymentRequest" type="string">
-  The BOLT11 invoice string. Starts with `lnbc`. Encode this as a QR code for the payer to scan, or let them copy-paste it into their Lightning wallet.
+  The BOLT11 invoice string. Always starts with `lnbc` on mainnet. This is what you encode as a QR code or give to the customer to paste into their wallet.
 </ResponseField>
 
 <ResponseField name="paymentHash" type="string">
-  A 64-character hex string that uniquely identifies this invoice. Use this to check payment status.
+  A 64-character lowercase hex string that uniquely identifies this invoice. Save this — it is what you pass to the [status endpoint](/api-reference/invoices/status) to check whether payment has arrived.
 </ResponseField>
 
 <ResponseField name="amount" type="integer">
-  The invoice amount in satoshis, echoed back.
+  The invoice amount in satoshis, echoed back for confirmation.
 </ResponseField>
 
 <ResponseField name="description" type="string">
@@ -38,10 +47,10 @@ authMethod: "bearer"
 </ResponseField>
 
 <ResponseField name="expiresAt" type="string">
-  ISO 8601 timestamp. The invoice expires 10 minutes after creation. After this time it can no longer be paid.
+  ISO 8601 timestamp marking when the invoice expires. Exactly 10 minutes from creation time. After this timestamp, the invoice cannot be paid and `paid` will always return `false`.
 </ResponseField>
 
-## Example
+## Examples
 
 <CodeGroup>
 
@@ -59,7 +68,7 @@ curl -X POST https://ln-breeze.vercel.app/api/v1/invoices \
 const res = await fetch("https://ln-breeze.vercel.app/api/v1/invoices", {
   method: "POST",
   headers: {
-    "Authorization": `Bearer ${apiKey}`,
+    "Authorization": `Bearer ${process.env.LN_BREEZE_API_KEY}`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -69,20 +78,29 @@ const res = await fetch("https://ln-breeze.vercel.app/api/v1/invoices", {
 });
 
 const invoice = await res.json();
-// invoice.paymentRequest → show as QR code
-// invoice.paymentHash    → use to poll for payment
+
+// Show the QR code
+renderQRCode(invoice.paymentRequest);
+
+// Start polling for payment
+pollForPayment(invoice.paymentHash);
 ```
 
 ```python Python
-import requests
+import requests, os
 
 res = requests.post(
   "https://ln-breeze.vercel.app/api/v1/invoices",
-  headers={"Authorization": f"Bearer {api_key}"},
-  json={"amount": 1000, "description": "Payment for logo design"},
+  headers={"Authorization": f"Bearer {os.environ['LN_BREEZE_API_KEY']}"},
+  json={
+    "amount": 1000,
+    "description": "Payment for logo design",
+  },
 )
 
 invoice = res.json()
+payment_hash = invoice["paymentHash"]
+payment_request = invoice["paymentRequest"]
 ```
 
 </CodeGroup>
@@ -91,7 +109,7 @@ invoice = res.json()
 
 ```json
 {
-  "paymentRequest": "lnbc10u1pn2k3j4pp5...",
+  "paymentRequest": "lnbc10u1pn2k3j4pp5a3f9bc2d1e4f5a6b...",
   "paymentHash": "a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
   "amount": 1000,
   "description": "Payment for logo design",
@@ -99,11 +117,17 @@ invoice = res.json()
 }
 ```
 
+## What to do after creating an invoice
+
+1. **Show the QR code** — encode `paymentRequest` as a QR code using any library (`qrcode` in Python, `qrcode.react` in React, etc.)
+2. **Store the `paymentHash`** — you will need it to check payment status
+3. **Start polling** — call [GET /api/v1/invoices/:hash](/api-reference/invoices/status) every 2–3 seconds until `paid: true` or the invoice expires
+
 ## Error responses
 
-| Status | Error | Reason |
+| Status | Message | What happened |
 |---|---|---|
-| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
-| `400` | `amount must be a positive integer (satoshis)` | Amount is missing, zero, negative, or a decimal |
-| `400` | `description is required` | Description is missing or empty |
-| `500` | `Failed to create invoice` | LNbits returned an error |
+| `401` | `Invalid or missing API key` | Bearer token is missing, expired, or invalid |
+| `400` | `amount must be a positive integer (satoshis)` | Amount is missing, zero, negative, a decimal, or not a number |
+| `400` | `description is required` | Description field is missing or empty |
+| `500` | `Failed to create invoice` | LNbits returned an error — check that your wallet has sufficient inbound liquidity |

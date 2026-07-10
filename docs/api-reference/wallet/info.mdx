@@ -1,25 +1,36 @@
 ---
 title: "Get Wallet Info"
 api: "GET /api/v1/wallet"
-description: "Retrieve the name and balance of your connected wallet."
+description: "Retrieve the name and current balance of your connected LNbits wallet."
 authMethod: "bearer"
 ---
+
+## Overview
+
+Returns basic information about the wallet tied to your API key. Useful for verifying your integration is working, displaying wallet status in a dashboard, or checking balance before generating invoices.
+
+This is also a good health-check endpoint — if it returns a `200` with wallet data, your API key is valid and your LNbits instance is reachable.
 
 ## Response
 
 <ResponseField name="name" type="string">
-  The wallet name as set in LNbits.
+  The wallet display name as set in LNbits.
 </ResponseField>
 
 <ResponseField name="balance" type="integer">
-  The wallet balance in **millisatoshis** (1 satoshi = 1,000 millisatoshis). Divide by 1,000 to get satoshis.
+  Current wallet balance in **millisatoshis**. Lightning internally uses millisatoshis (1/1000th of a satoshi) for precision.
+
+  To display in satoshis: divide by 1,000.
+  To display in BTC: divide by 100,000,000,000.
+
+  Example: `2,500,000` millisatoshis = `2,500` satoshis = `0.000025` BTC
 </ResponseField>
 
 <ResponseField name="walletId" type="string">
-  The LNbits wallet ID associated with your API key.
+  The LNbits Wallet ID associated with your API key, echoed back for confirmation.
 </ResponseField>
 
-## Example
+## Examples
 
 <CodeGroup>
 
@@ -30,23 +41,27 @@ curl https://ln-breeze.vercel.app/api/v1/wallet \
 
 ```js JavaScript
 const res = await fetch("https://ln-breeze.vercel.app/api/v1/wallet", {
-  headers: { Authorization: `Bearer ${apiKey}` },
+  headers: {
+    Authorization: `Bearer ${process.env.LN_BREEZE_API_KEY}`,
+  },
 });
 
-const { name, balance } = await res.json();
+const { name, balance, walletId } = await res.json();
+
 console.log(`${name}: ${balance / 1000} sats`);
 ```
 
 ```python Python
-import requests
+import requests, os
 
 res = requests.get(
   "https://ln-breeze.vercel.app/api/v1/wallet",
-  headers={"Authorization": f"Bearer {api_key}"},
+  headers={"Authorization": f"Bearer {os.environ['LN_BREEZE_API_KEY']}"},
 )
 
-data = res.json()
-print(f"{data['name']}: {data['balance'] / 1000} sats")
+wallet = res.json()
+sats = wallet["balance"] / 1000
+print(f"{wallet['name']}: {sats:,.0f} sats")
 ```
 
 </CodeGroup>
@@ -57,17 +72,17 @@ print(f"{data['name']}: {data['balance'] / 1000} sats")
 {
   "name": "My Shop Wallet",
   "balance": 2500000,
-  "walletId": "f6e5d4c3b2a1..."
+  "walletId": "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3"
 }
 ```
 
 <Note>
-  Balance is returned in millisatoshis by LNbits. In this example, `2500000` millisatoshis = `2500` satoshis.
+  Balance reflects the wallet's current Lightning balance, not on-chain funds. Lightning balance is what is available for receiving payments through this API.
 </Note>
 
 ## Error responses
 
-| Status | Error | Reason |
+| Status | Message | What happened |
 |---|---|---|
-| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
-| `500` | `Failed to reach wallet` | Could not connect to LNbits |
+| `401` | `Invalid or missing API key` | Bearer token is missing or invalid |
+| `500` | `Failed to reach wallet` | LNbits instance is unreachable — check that your LNbits URL is still live |

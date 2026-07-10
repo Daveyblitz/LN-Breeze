@@ -5,60 +5,83 @@ description: "Check whether a Lightning invoice has been paid."
 authMethod: "bearer"
 ---
 
-## Path Parameters
+## Overview
+
+Once you have created an invoice and shown the QR code to your customer, you need to know the moment it gets paid. This endpoint is how you do that.
+
+Poll it on an interval — every 2 to 3 seconds is a good balance between responsiveness and server load. The moment `paid` comes back `true`, stop polling and trigger your fulfilment logic. If the invoice expires unpaid (10 minutes after creation), `paid` will remain `false` permanently for that hash.
+
+## Path parameters
 
 <ParamField path="hash" type="string" required>
-  The `paymentHash` returned when the invoice was created. Must be exactly 64 lowercase hex characters.
-  
-  Example: `a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b`
+  The `paymentHash` returned when the invoice was created. Must be exactly 64 lowercase hexadecimal characters.
+
+  This is validated server-side — requests with malformed hashes (wrong length, non-hex characters, path traversal attempts) are rejected before reaching LNbits.
 </ParamField>
 
 ## Response
 
 <ResponseField name="paymentHash" type="string">
-  The payment hash, echoed back.
+  The payment hash, echoed back so you can match the response to the right invoice in your application.
 </ResponseField>
 
 <ResponseField name="paid" type="boolean">
-  `true` if the invoice has been paid, `false` if it is still unpaid or expired.
+  `true` if the invoice has been settled. `false` if it is still pending or has expired unpaid. Once `true`, it will always be `true` — Lightning payments are final.
 </ResponseField>
 
-## Example
+## Examples
 
 <CodeGroup>
 
 ```bash cURL
-curl https://ln-breeze.vercel.app/api/v1/invoices/a3f9bc2d... \
+curl https://ln-breeze.vercel.app/api/v1/invoices/a3f9bc2d1e4f5a6b... \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ```js JavaScript
-// Poll every 3 seconds until paid
-const poll = setInterval(async () => {
-  const res = await fetch(
-    `https://ln-breeze.vercel.app/api/v1/invoices/${paymentHash}`,
-    { headers: { Authorization: `Bearer ${apiKey}` } }
-  );
-  const { paid } = await res.json();
-  if (paid) {
-    clearInterval(poll);
-    console.log("Payment received!");
-  }
-}, 3000);
+async function waitForPayment(paymentHash, apiKey, onPaid, onExpired, expiresAt) {
+  const poll = setInterval(async () => {
+    // Stop if the invoice has expired
+    if (Date.now() > new Date(expiresAt).getTime()) {
+      clearInterval(poll);
+      onExpired();
+      return;
+    }
+
+    const res = await fetch(
+      `https://ln-breeze.vercel.app/api/v1/invoices/${paymentHash}`,
+      { headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+
+    const { paid } = await res.json();
+
+    if (paid) {
+      clearInterval(poll);
+      onPaid();
+    }
+  }, 3000); // poll every 3 seconds
+}
 ```
 
 ```python Python
-import requests, time
+import requests, time, os
+from datetime import datetime, timezone
 
-while True:
-  res = requests.get(
-    f"https://ln-breeze.vercel.app/api/v1/invoices/{payment_hash}",
-    headers={"Authorization": f"Bearer {api_key}"},
-  )
-  if res.json()["paid"]:
-    print("Payment received!")
-    break
-  time.sleep(3)
+def wait_for_payment(payment_hash, expires_at, on_paid, on_expired):
+    api_key = os.environ["LN_BREEZE_API_KEY"]
+    expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+
+    while datetime.now(timezone.utc) < expiry:
+        res = requests.get(
+            f"https://ln-breeze.vercel.app/api/v1/invoices/{payment_hash}",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        if res.json().get("paid"):
+            on_paid()
+            return
+        time.sleep(3)
+
+    on_expired()
 ```
 
 </CodeGroup>
@@ -72,11 +95,17 @@ while True:
 }
 ```
 
+## Polling vs WebSockets
+
+Polling this endpoint works well for most use cases. For applications that need true real-time detection (under one second), consider opening a WebSocket connection directly to your LNbits instance at `wss://your-lnbits-url/api/v1/ws/<walletId>`. LNbits emits a message the moment a payment arrives.
+
+A robust implementation uses both: WebSocket as the primary detection channel, polling as the fallback if the WebSocket connection drops.
+
 ## Error responses
 
-| Status | Error | Reason |
+| Status | Message | What happened |
 |---|---|---|
-| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
-| `400` | `Invalid payment hash — must be a 64-character hex string` | Hash is malformed |
-| `404` | `Invoice not found` | No invoice with this hash exists on the wallet |
+| `401` | `Invalid or missing API key` | Bearer token is missing or invalid |
+| `400` | `Invalid payment hash — must be a 64-character hex string` | The hash in the URL is not a valid format |
+| `404` | `Invoice not found` | No invoice with this hash exists on the connected wallet |
 | `500` | `Failed to check invoice status` | LNbits returned an error |
