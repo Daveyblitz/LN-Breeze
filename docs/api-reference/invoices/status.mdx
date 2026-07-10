@@ -1,0 +1,82 @@
+---
+title: "Check Invoice Status"
+api: "GET /api/v1/invoices/{hash}"
+description: "Check whether a Lightning invoice has been paid."
+authMethod: "bearer"
+---
+
+## Path Parameters
+
+<ParamField path="hash" type="string" required>
+  The `paymentHash` returned when the invoice was created. Must be exactly 64 lowercase hex characters.
+  
+  Example: `a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b`
+</ParamField>
+
+## Response
+
+<ResponseField name="paymentHash" type="string">
+  The payment hash, echoed back.
+</ResponseField>
+
+<ResponseField name="paid" type="boolean">
+  `true` if the invoice has been paid, `false` if it is still unpaid or expired.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl https://ln-breeze.vercel.app/api/v1/invoices/a3f9bc2d... \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```js JavaScript
+// Poll every 3 seconds until paid
+const poll = setInterval(async () => {
+  const res = await fetch(
+    `https://ln-breeze.vercel.app/api/v1/invoices/${paymentHash}`,
+    { headers: { Authorization: `Bearer ${apiKey}` } }
+  );
+  const { paid } = await res.json();
+  if (paid) {
+    clearInterval(poll);
+    console.log("Payment received!");
+  }
+}, 3000);
+```
+
+```python Python
+import requests, time
+
+while True:
+  res = requests.get(
+    f"https://ln-breeze.vercel.app/api/v1/invoices/{payment_hash}",
+    headers={"Authorization": f"Bearer {api_key}"},
+  )
+  if res.json()["paid"]:
+    print("Payment received!")
+    break
+  time.sleep(3)
+```
+
+</CodeGroup>
+
+## Response example
+
+```json
+{
+  "paymentHash": "a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+  "paid": true
+}
+```
+
+## Error responses
+
+| Status | Error | Reason |
+|---|---|---|
+| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
+| `400` | `Invalid payment hash — must be a 64-character hex string` | Hash is malformed |
+| `404` | `Invoice not found` | No invoice with this hash exists on the wallet |
+| `500` | `Failed to check invoice status` | LNbits returned an error |

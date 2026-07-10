@@ -1,0 +1,68 @@
+---
+title: "Authentication"
+description: "How LN-Breeze API keys work and how to use them."
+---
+
+## Overview
+
+LN-Breeze uses **Bearer token authentication**. Your API key is a signed token that contains your LNbits credentials. You register once, receive a key, and include it in every request.
+
+## Getting an API key
+
+Send a `POST` request to `/api/v1/auth/register` with your LNbits credentials:
+
+```bash
+curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lnbitsUrl": "https://demo.lnbits.com",
+    "invoiceKey": "your_invoice_key",
+    "walletId": "your_wallet_id"
+  }'
+```
+
+LN-Breeze verifies your credentials against LNbits, then returns a signed API key tied to your wallet.
+
+## Using your API key
+
+Include it in the `Authorization` header of every request:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Example:
+
+```bash
+curl https://ln-breeze.vercel.app/api/v1/wallet \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
+## How the key works
+
+Your API key is a JWT (JSON Web Token). It contains your LNbits credentials, signed with a secret only LN-Breeze knows. When you send a request:
+
+1. LN-Breeze reads the token from your `Authorization` header
+2. Verifies the signature — if it has been tampered with, the request is rejected
+3. Reads your LNbits credentials from inside the token
+4. Makes the LNbits API call on your behalf
+
+Your credentials are never stored in a database. Everything needed is inside the token itself.
+
+## Security
+
+- **Store your API key securely** — treat it like a password. Anyone with your key can create invoices on your wallet.
+- **Do not expose it client-side** — keep it in environment variables on your server, not in browser JavaScript.
+- **It does not expire** — if you believe your key has been compromised, re-register with the same credentials to generate a new one.
+
+## Error responses
+
+If your API key is missing or invalid, all endpoints return:
+
+```json
+{
+  "error": "Invalid or missing API key"
+}
+```
+
+HTTP status: `401 Unauthorized`

@@ -1,0 +1,109 @@
+---
+title: "Create Invoice"
+api: "POST /api/v1/invoices"
+description: "Generate a BOLT11 Lightning invoice for a given amount."
+authMethod: "bearer"
+---
+
+## Request
+
+<ParamField body="amount" type="integer" required>
+  The invoice amount in **satoshis**. Must be a positive whole number.
+  
+  Example: `1000` (= 1,000 sats)
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  A short description of what the payment is for. Shown to the payer in their Lightning wallet.
+  
+  Example: `"Payment for logo design"`
+</ParamField>
+
+## Response
+
+<ResponseField name="paymentRequest" type="string">
+  The BOLT11 invoice string. Starts with `lnbc`. Encode this as a QR code for the payer to scan, or let them copy-paste it into their Lightning wallet.
+</ResponseField>
+
+<ResponseField name="paymentHash" type="string">
+  A 64-character hex string that uniquely identifies this invoice. Use this to check payment status.
+</ResponseField>
+
+<ResponseField name="amount" type="integer">
+  The invoice amount in satoshis, echoed back.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The invoice description, echoed back.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 timestamp. The invoice expires 10 minutes after creation. After this time it can no longer be paid.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://ln-breeze.vercel.app/api/v1/invoices \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 1000,
+    "description": "Payment for logo design"
+  }'
+```
+
+```js JavaScript
+const res = await fetch("https://ln-breeze.vercel.app/api/v1/invoices", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    amount: 1000,
+    description: "Payment for logo design",
+  }),
+});
+
+const invoice = await res.json();
+// invoice.paymentRequest → show as QR code
+// invoice.paymentHash    → use to poll for payment
+```
+
+```python Python
+import requests
+
+res = requests.post(
+  "https://ln-breeze.vercel.app/api/v1/invoices",
+  headers={"Authorization": f"Bearer {api_key}"},
+  json={"amount": 1000, "description": "Payment for logo design"},
+)
+
+invoice = res.json()
+```
+
+</CodeGroup>
+
+## Response example
+
+```json
+{
+  "paymentRequest": "lnbc10u1pn2k3j4pp5...",
+  "paymentHash": "a3f9bc2d1e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+  "amount": 1000,
+  "description": "Payment for logo design",
+  "expiresAt": "2026-07-10T15:30:00.000Z"
+}
+```
+
+## Error responses
+
+| Status | Error | Reason |
+|---|---|---|
+| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
+| `400` | `amount must be a positive integer (satoshis)` | Amount is missing, zero, negative, or a decimal |
+| `400` | `description is required` | Description is missing or empty |
+| `500` | `Failed to create invoice` | LNbits returned an error |

@@ -1,0 +1,100 @@
+---
+title: "Register"
+api: "POST /api/v1/auth/register"
+description: "Exchange your LNbits credentials for an LN-Breeze API key."
+---
+
+## Request
+
+<ParamField body="lnbitsUrl" type="string" required>
+  The base URL of your LNbits instance. Must be HTTPS.
+  
+  Example: `https://demo.lnbits.com`
+</ParamField>
+
+<ParamField body="invoiceKey" type="string" required>
+  Your LNbits Invoice/Read Key. Found in your wallet under API Info.
+</ParamField>
+
+<ParamField body="walletId" type="string" required>
+  Your LNbits Wallet ID. Found in your wallet under API Info.
+</ParamField>
+
+## Response
+
+<ResponseField name="apiKey" type="string">
+  Your signed API key. Include this as a Bearer token in all subsequent requests.
+  Store it securely — it will not be shown again.
+</ResponseField>
+
+<ResponseField name="walletName" type="string">
+  The name of the wallet your API key is tied to, as returned by LNbits.
+</ResponseField>
+
+<ResponseField name="note" type="string">
+  A reminder to store your API key securely.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lnbitsUrl": "https://demo.lnbits.com",
+    "invoiceKey": "a1b2c3d4e5f6...",
+    "walletId": "f6e5d4c3b2a1..."
+  }'
+```
+
+```js JavaScript
+const res = await fetch("https://ln-breeze.vercel.app/api/v1/auth/register", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    lnbitsUrl: "https://demo.lnbits.com",
+    invoiceKey: "a1b2c3d4e5f6...",
+    walletId: "f6e5d4c3b2a1...",
+  }),
+});
+
+const { apiKey } = await res.json();
+```
+
+```python Python
+import requests
+
+res = requests.post(
+  "https://ln-breeze.vercel.app/api/v1/auth/register",
+  json={
+    "lnbitsUrl": "https://demo.lnbits.com",
+    "invoiceKey": "a1b2c3d4e5f6...",
+    "walletId": "f6e5d4c3b2a1...",
+  }
+)
+
+api_key = res.json()["apiKey"]
+```
+
+</CodeGroup>
+
+## Response example
+
+```json
+{
+  "apiKey": "eyJhbGciOiJIUzI1NiJ9.eyJsb...",
+  "walletName": "My Shop Wallet",
+  "note": "Store this API key securely — it will not be shown again."
+}
+```
+
+## Error responses
+
+| Status | Error | Reason |
+|---|---|---|
+| `400` | `lnbitsUrl, invoiceKey, and walletId are required` | One or more fields missing |
+| `400` | `Invalid LNbits URL` | URL is not a valid public HTTPS address |
+| `401` | `Invalid credentials or could not reach LNbits` | Credentials rejected by LNbits |
+| `500` | `Registration failed` | Unexpected server error |

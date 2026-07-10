@@ -1,0 +1,73 @@
+---
+title: "Get Wallet Info"
+api: "GET /api/v1/wallet"
+description: "Retrieve the name and balance of your connected wallet."
+authMethod: "bearer"
+---
+
+## Response
+
+<ResponseField name="name" type="string">
+  The wallet name as set in LNbits.
+</ResponseField>
+
+<ResponseField name="balance" type="integer">
+  The wallet balance in **millisatoshis** (1 satoshi = 1,000 millisatoshis). Divide by 1,000 to get satoshis.
+</ResponseField>
+
+<ResponseField name="walletId" type="string">
+  The LNbits wallet ID associated with your API key.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl https://ln-breeze.vercel.app/api/v1/wallet \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```js JavaScript
+const res = await fetch("https://ln-breeze.vercel.app/api/v1/wallet", {
+  headers: { Authorization: `Bearer ${apiKey}` },
+});
+
+const { name, balance } = await res.json();
+console.log(`${name}: ${balance / 1000} sats`);
+```
+
+```python Python
+import requests
+
+res = requests.get(
+  "https://ln-breeze.vercel.app/api/v1/wallet",
+  headers={"Authorization": f"Bearer {api_key}"},
+)
+
+data = res.json()
+print(f"{data['name']}: {data['balance'] / 1000} sats")
+```
+
+</CodeGroup>
+
+## Response example
+
+```json
+{
+  "name": "My Shop Wallet",
+  "balance": 2500000,
+  "walletId": "f6e5d4c3b2a1..."
+}
+```
+
+<Note>
+  Balance is returned in millisatoshis by LNbits. In this example, `2500000` millisatoshis = `2500` satoshis.
+</Note>
+
+## Error responses
+
+| Status | Error | Reason |
+|---|---|---|
+| `401` | `Invalid or missing API key` | Bearer token missing or invalid |
+| `500` | `Failed to reach wallet` | Could not connect to LNbits |

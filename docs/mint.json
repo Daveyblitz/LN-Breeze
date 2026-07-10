@@ -1,0 +1,52 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "LN-Breeze",
+  "logo": {
+    "light": "/docs/logo/light.png",
+    "dark": "/docs/logo/dark.png"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#facc15",
+    "light": "#fde68a",
+    "dark": "#ca8a04",
+    "background": {
+      "light": "#ffffff",
+      "dark": "#09090b"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "App",
+      "url": "https://ln-breeze.vercel.app"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get API Key",
+    "url": "https://ln-breeze.vercel.app"
+  },
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": ["introduction", "quickstart", "authentication"]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/auth/register",
+        "api-reference/invoices/create",
+        "api-reference/invoices/status",
+        "api-reference/wallet/info"
+      ]
+    }
+  ],
+  "api": {
+    "baseUrl": "https://ln-breeze.vercel.app",
+    "auth": {
+      "method": "bearer"
+    }
+  },
+  "footerSocials": {
+    "github": "https://github.com/Daveyblitz/LN-Breeze"
+  }
+}

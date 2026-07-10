@@ -1,0 +1,86 @@
+---
+title: "Quickstart"
+description: "Create your first Lightning invoice in under 5 minutes."
+---
+
+## Step 1 — Get your LNbits credentials
+
+Go to [demo.lnbits.com](https://demo.lnbits.com) and create a free wallet, or use an existing one.
+
+From your wallet dashboard you need three things:
+
+| Value | Where to find it |
+|---|---|
+| `lnbitsUrl` | The base URL of your LNbits instance, e.g. `https://demo.lnbits.com` |
+| `invoiceKey` | In your wallet → API Info → Invoice/Read Key |
+| `walletId` | In your wallet → API Info → Wallet ID |
+
+## Step 2 — Register for an API key
+
+```bash
+curl -X POST https://ln-breeze.vercel.app/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lnbitsUrl": "https://demo.lnbits.com",
+    "invoiceKey": "your_invoice_key_here",
+    "walletId": "your_wallet_id_here"
+  }'
+```
+
+Response:
+
+```json
+{
+  "apiKey": "eyJhbGciOiJIUzI1NiJ9...",
+  "walletName": "My Wallet",
+  "note": "Store this API key securely — it will not be shown again."
+}
+```
+
+Save that `apiKey`. Every request from here on uses it.
+
+## Step 3 — Create a Lightning invoice
+
+```bash
+curl -X POST https://ln-breeze.vercel.app/api/v1/invoices \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 1000,
+    "description": "Payment for logo design"
+  }'
+```
+
+Response:
+
+```json
+{
+  "paymentRequest": "lnbc10u1p...",
+  "paymentHash": "a3f9bc2d...",
+  "amount": 1000,
+  "description": "Payment for logo design",
+  "expiresAt": "2026-07-10T15:30:00.000Z"
+}
+```
+
+The `paymentRequest` is the BOLT11 string — show it as a QR code or let your customer copy it into any Lightning wallet.
+
+## Step 4 — Check if it was paid
+
+Poll this endpoint until `paid` is `true`:
+
+```bash
+curl https://ln-breeze.vercel.app/api/v1/invoices/a3f9bc2d... \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
+Response:
+
+```json
+{
+  "paymentHash": "a3f9bc2d...",
+  "paid": true
+}
+```
+
+That is the full integration. Register once, create invoices, poll for payment.

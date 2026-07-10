@@ -1,0 +1,38 @@
+---
+title: "Introduction"
+description: "Accept Bitcoin Lightning payments in your app without running a node."
+---
+
+## What is LN-Breeze?
+
+LN-Breeze is a REST API that lets any developer add Lightning Network payment support to their application in minutes.
+
+You bring your own [LNbits](https://lnbits.com) wallet. LN-Breeze handles everything else — creating invoices, checking payment status, and sending invoice emails to customers.
+
+## What you can build
+
+- **E-commerce checkout** — generate a Lightning invoice at checkout, poll for payment confirmation
+- **Donation buttons** — let visitors pay in sats with a scannable QR code
+- **SaaS billing** — invoice customers in Bitcoin over Lightning
+- **Point of sale** — generate invoices on demand, detect payment in real time
+
+## How it works
+
+```
+Your app  →  POST /api/v1/invoices  →  LN-Breeze  →  LNbits
+                                                         ↓
+Your app  ←  { paymentRequest, paymentHash }  ←  LN-Breeze
+
+Customer scans QR code and pays
+
+Your app  →  GET /api/v1/invoices/:hash  →  LN-Breeze  →  LNbits
+Your app  ←  { paid: true }  ←  LN-Breeze
+```
+
+LN-Breeze sits between your app and LNbits. Your LNbits credentials never leave the server.
+
+## Prerequisites
+
+- An [LNbits](https://lnbits.com) wallet (free at [demo.lnbits.com](https://demo.lnbits.com))
+- Your LNbits **Invoice Key**, **Wallet ID**, and the **LNbits URL**
+- An LN-Breeze API key (takes 30 seconds — see [Authentication](/authentication))
