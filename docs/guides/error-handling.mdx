@@ -1,0 +1,200 @@
+---
+title: "Error Handling"
+description: "Every error response in the LN-Breeze API and what to do when you see one."
+---
+
+## Response format
+
+All errors follow the same JSON shape:
+
+```json
+{
+  "error": "A description of what went wrong"
+}
+```
+
+HTTP status codes follow standard conventions: `400` for bad input, `401` for auth failures, `404` for missing resources, `500` for server-side errors.
+
+## Authentication errors
+
+### `401 — Invalid or missing API key`
+
+Returned by every endpoint (except `/auth/register`) when the `Authorization` header is missing, malformed, or contains an invalid token.
+
+**Common causes:**
+- Forgot to include the `Authorization: Bearer ...` header
+- Copied the API key with extra whitespace or a missing character
+- Using a token signed with a different `JWT_SECRET` (e.g. from a different environment)
+
+**What to do:** Verify the header format is exactly `Authorization: Bearer YOUR_API_KEY`. If the key itself may be corrupted, call `/auth/register` again to generate a new one.
+
+---
+
+## Registration errors
+
+### `400 — lnbitsUrl, invoiceKey, and walletId are required`
+
+One or more fields are missing from the request body.
+
+**What to do:** Ensure all three fields are present and non-empty in your JSON body.
+
+### `400 — Invalid LNbits URL`
+
+The `lnbitsUrl` value is not a valid public HTTPS address. Blocked values include `http://` URLs, `localhost`, and private IP ranges.
+
+**What to do:** Make sure the URL starts with `https://` and points to a publicly reachable LNbits instance.
+
+### `401 — Invalid credentials or could not reach LNbits`
+
+Either the Invoice Key or Wallet ID was rejected by LNbits, or the LNbits instance itself was unreachable during registration.
+
+**What to do:**
+1. Double-check your Invoice Key and Wallet ID in your LNbits wallet under **API Info**
+2. Confirm your LNbits instance is online by visiting the URL in a browser
+3. Make sure you are using the **Invoice Key**, not the Admin Key
+
+---
+
+## Invoice creation errors
+
+### `400 — amount must be a positive integer (satoshis)`
+
+The `amount` field is missing, zero, negative, a decimal number, or not a number at all.
+
+**What to do:** Pass a whole number greater than zero. Satoshis cannot be fractional — round up if needed.
+
+```json
+// Wrong
+{ "amount": 10.5 }
+{ "amount": 0 }
+{ "amount": "1000" }
+
+// Correct
+{ "amount": 1000 }
+```
+
+### `400 — description is required`
+
+The `description` field is missing or empty.
+
+**What to do:** Always include a non-empty description. Even a generic value like `"Payment"` satisfies this requirement.
+
+### `500 — Failed to create invoice`
+
+LNbits returned an error when the invoice was being created. This is uncommon but can happen.
+
+**Common causes:**
+- The LNbits instance is experiencing downtime
+- The wallet has been deleted or suspended on the LNbits side
+- Rate limits on the LNbits instance
+
+**What to do:** Retry once after a short delay. If it persists, check your LNbits wallet dashboard directly to confirm the wallet is active.
+
+---
+
+## Invoice status errors
+
+### `400 — Invalid payment hash — must be a 64-character hex string`
+
+The hash in the URL path is not a valid payment hash format.
+
+**What to do:** Use the `paymentHash` value exactly as returned by the create invoice endpoint. It should be 64 lowercase hex characters. Do not modify it.
+
+### `404 — Invoice not found`
+
+No invoice with this payment hash exists on the wallet connected to your API key.
+
+**Common causes:**
+- Using a payment hash from a different wallet
+- The hash was truncated or modified
+
+**What to do:** Confirm the hash matches what was returned by `POST /api/v1/invoices` for this wallet.
+
+### `500 — Failed to check invoice status`
+
+LNbits returned an error when checking status.
+
+**What to do:** Retry on the next polling interval. If it persists, check your LNbits instance.
+
+---
+
+## Wallet errors
+
+### `500 — Failed to reach wallet`
+
+The LNbits instance associated with your API key is not responding.
+
+**Common causes:**
+- The LNbits instance has gone offline (common with demo.lnbits.com)
+- The wallet was deleted on the LNbits side
+
+**What to do:** Visit your LNbits URL directly to check if it is online. If you are using demo.lnbits.com, note that it is a public demo instance with occasional downtime. For production use, self-host LNbits.
+
+---
+
+## Handling errors in code
+
+<CodeGroup>
+
+```js JavaScript
+const res = await fetch("https://ln-breeze.vercel.app/api/v1/invoices", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ amount, description }),
+});
+
+if (!res.ok) {
+  const { error } = await res.json();
+
+  if (res.status === 401) {
+    // API key issue — do not retry automatically
+    throw new Error(`Authentication failed: ${error}`);
+  }
+
+  if (res.status === 400) {
+    // Bad input — fix the request before retrying
+    throw new Error(`Invalid request: ${error}`);
+  }
+
+  if (res.status === 500) {
+    // Server error — safe to retry after a delay
+    await delay(2000);
+    return createInvoice(amount, description); // retry once
+  }
+}
+
+const invoice = await res.json();
+```
+
+```python Python
+import requests, time
+
+def create_invoice(amount, description, api_key, retries=1):
+    res = requests.post(
+        "https://ln-breeze.vercel.app/api/v1/invoices",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"amount": amount, "description": description},
+    )
+
+    if res.status_code == 200 or res.status_code == 201:
+        return res.json()
+
+    error = res.json().get("error", "Unknown error")
+
+    if res.status_code == 401:
+        raise Exception(f"Authentication failed: {error}")
+
+    if res.status_code == 400:
+        raise ValueError(f"Invalid request: {error}")
+
+    if res.status_code == 500 and retries > 0:
+        time.sleep(2)
+        return create_invoice(amount, description, api_key, retries - 1)
+
+    raise Exception(f"Server error: {error}")
+```
+
+</CodeGroup>

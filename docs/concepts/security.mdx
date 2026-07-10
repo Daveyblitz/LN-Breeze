@@ -1,0 +1,74 @@
+---
+title: "Security"
+description: "What LN-Breeze protects you from, and what you are responsible for as a developer."
+---
+
+## The threat model
+
+When you accept Lightning payments through an API, two things are sensitive: your **wallet credentials** (which can create invoices and, with the Admin Key, spend funds) and your **payment data** (transaction history, amounts, timing). LN-Breeze is designed to keep both secure.
+
+Here is what the architecture protects against, and where your own responsibilities begin.
+
+## What LN-Breeze handles
+
+### Credential isolation
+
+Your LNbits Invoice Key and Wallet ID never travel beyond the LN-Breeze server. When you register, those credentials are sealed inside a signed JWT and returned to you as your API key. On every subsequent request, the server opens the JWT, reads the credentials out, and uses them to call LNbits — all server-side. Your raw LNbits keys are never sent to a browser, never stored in a database, never logged.
+
+### SSRF protection
+
+Every endpoint that accepts a LNbits URL validates it before making any outbound request. The following are blocked:
+
+- `http://` — only HTTPS is accepted
+- `localhost` and `127.x.x.x` — loopback addresses
+- `10.x`, `192.168.x`, `172.16–31.x` — private network ranges
+- `169.254.169.254` — AWS and Azure instance metadata endpoint
+- `metadata.google.internal` — GCP metadata endpoint
+
+This prevents an attacker from using LN-Breeze as a proxy to reach internal infrastructure by supplying a crafted LNbits URL.
+
+### Payment hash validation
+
+The invoice status endpoint validates that the `hash` path parameter is exactly 64 lowercase hex characters before passing it to LNbits. This blocks path traversal attacks where a crafted hash like `../../admin` could be used to hit unintended LNbits endpoints.
+
+### Generic error messages
+
+Authentication failures always return the same message regardless of why they failed — wrong token, missing token, tampered token. This prevents an attacker from learning anything useful about why their request was rejected.
+
+## What you are responsible for
+
+### API key storage
+
+Your API key contains your LNbits Invoice Key. Anyone with the key can create invoices on your wallet. Store it like a password:
+
+- **Do** — environment variables on your server
+- **Do** — a secrets manager (AWS Secrets Manager, Vercel environment variables, etc.)
+- **Do not** — hardcode in source files
+- **Do not** — commit to a git repository
+- **Do not** — put in client-side JavaScript
+
+If your key is ever exposed, call the register endpoint again to get a new one and update your environment variables immediately.
+
+### HTTPS in production
+
+Always call the LN-Breeze API over HTTPS. The API is served at `https://ln-breeze.vercel.app` — never use HTTP. This protects your API key from being intercepted in transit.
+
+### Invoice Key vs Admin Key
+
+LN-Breeze only requires your LNbits **Invoice Key** — the read-only key that allows creating and reading invoices. Never use your **Admin Key** with this API. The Admin Key can send funds from your wallet. Keep it off the network entirely and only use it directly on your LNbits dashboard.
+
+### Session handling
+
+The LN-Breeze "disconnect" flow clears credentials from your client application, but it does not invalidate your LNbits Invoice Key on the LNbits side. The Invoice Key remains valid on LNbits until you regenerate it directly through your LNbits wallet dashboard. If you suspect your key has been exposed, regenerate it in LNbits and then re-register with LN-Breeze to get a new API key.
+
+## Summary
+
+| Layer | Protected by |
+|---|---|
+| LNbits credentials | Sealed in signed JWT, never leave the server |
+| SSRF attacks | URL validation on all outbound requests |
+| Path traversal | Payment hash format validation |
+| Information leakage | Generic auth error messages |
+| API key in transit | HTTPS (developer responsibility) |
+| API key at rest | Secure storage (developer responsibility) |
+| LNbits Admin Key | Keep off the network entirely (developer responsibility) |

@@ -1,0 +1,244 @@
+---
+title: "Code Examples"
+description: "Complete, copy-paste integrations in JavaScript, Python, and plain HTML."
+---
+
+## JavaScript — Full checkout flow
+
+A complete integration that creates an invoice, renders a QR code, polls for payment, and handles expiry. Drop this into any Node.js or browser environment.
+
+```js
+const API_BASE = "https://ln-breeze.vercel.app/api/v1";
+const API_KEY = process.env.LN_BREEZE_API_KEY;
+
+async function createInvoice(amount, description) {
+  const res = await fetch(`${API_BASE}/invoices`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ amount, description }),
+  });
+
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new Error(error);
+  }
+
+  return res.json();
+  // { paymentRequest, paymentHash, amount, description, expiresAt }
+}
+
+async function waitForPayment(paymentHash, expiresAt, onPaid, onExpired) {
+  const expiry = new Date(expiresAt).getTime();
+
+  const poll = setInterval(async () => {
+    // Stop polling if the invoice has expired
+    if (Date.now() > expiry) {
+      clearInterval(poll);
+      onExpired();
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/invoices/${paymentHash}`, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      });
+      const { paid } = await res.json();
+
+      if (paid) {
+        clearInterval(poll);
+        onPaid();
+      }
+    } catch {
+      // Network error — keep polling on next interval
+    }
+  }, 3000);
+
+  // Return a cancel function
+  return () => clearInterval(poll);
+}
+
+// Usage
+const invoice = await createInvoice(1000, "Order #1042");
+
+// Show invoice.paymentRequest as a QR code using your preferred library
+showQRCode(invoice.paymentRequest);
+
+const cancel = await waitForPayment(
+  invoice.paymentHash,
+  invoice.expiresAt,
+  () => {
+    console.log("Payment received! Fulfil the order.");
+    hideQRCode();
+    showSuccessScreen();
+  },
+  () => {
+    console.log("Invoice expired. Ask customer to try again.");
+    showExpiredMessage();
+  }
+);
+
+// If the user navigates away, cancel the poll
+window.addEventListener("beforeunload", cancel);
+```
+
+---
+
+## Python — Flask checkout endpoint
+
+A minimal Flask route that generates a Lightning invoice and returns it as JSON for a frontend to consume.
+
+```python
+from flask import Flask, jsonify, request
+import requests
+import os
+
+app = Flask(__name__)
+
+API_BASE = "https://ln-breeze.vercel.app/api/v1"
+API_KEY = os.environ["LN_BREEZE_API_KEY"]
+
+def ln_breeze(method, path, **kwargs):
+    return requests.request(
+        method,
+        f"{API_BASE}{path}",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        **kwargs,
+    )
+
+@app.route("/checkout/invoice", methods=["POST"])
+def create_checkout_invoice():
+    data = request.get_json()
+    amount_sats = data.get("amount_sats")
+    order_id = data.get("order_id")
+
+    if not amount_sats or not order_id:
+        return jsonify({"error": "amount_sats and order_id are required"}), 400
+
+    res = ln_breeze("POST", "/invoices", json={
+        "amount": amount_sats,
+        "description": f"Order #{order_id}",
+    })
+
+    if not res.ok:
+        return jsonify({"error": "Failed to create invoice"}), 500
+
+    invoice = res.json()
+    return jsonify({
+        "paymentRequest": invoice["paymentRequest"],
+        "paymentHash": invoice["paymentHash"],
+        "expiresAt": invoice["expiresAt"],
+    })
+
+
+@app.route("/checkout/status/<payment_hash>", methods=["GET"])
+def check_payment_status(payment_hash):
+    res = ln_breeze("GET", f"/invoices/{payment_hash}")
+
+    if res.status_code == 404:
+        return jsonify({"error": "Invoice not found"}), 404
+
+    return jsonify(res.json())
+```
+
+---
+
+## HTML — Minimal payment page
+
+A self-contained HTML page that creates a Lightning invoice, displays it as a QR code using a free QR library, and polls for payment. No build tools, no framework — just paste and run.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pay with Lightning</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 60px auto; text-align: center; }
+    #qr { margin: 24px auto; }
+    #status { margin-top: 16px; font-size: 14px; color: #666; }
+    #success { display: none; color: green; font-size: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>⚡ Pay 1,000 sats</h1>
+  <p>Scan with any Lightning wallet</p>
+  <div id="qr"></div>
+  <div id="status">Generating invoice...</div>
+  <div id="success">✓ Payment received!</div>
+
+  <script>
+    const API_KEY = "YOUR_API_KEY_HERE"; // Move to your server in production
+    const API_BASE = "https://ln-breeze.vercel.app/api/v1";
+
+    async function init() {
+      // Create invoice
+      const res = await fetch(`${API_BASE}/invoices`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount: 1000, description: "Test payment" }),
+      });
+
+      const invoice = await res.json();
+
+      // Render QR code
+      new QRCode(document.getElementById("qr"), {
+        text: invoice.paymentRequest,
+        width: 240,
+        height: 240,
+      });
+
+      document.getElementById("status").textContent = "Waiting for payment...";
+
+      // Poll for payment
+      const expiry = new Date(invoice.expiresAt).getTime();
+
+      const poll = setInterval(async () => {
+        if (Date.now() > expiry) {
+          clearInterval(poll);
+          document.getElementById("status").textContent = "Invoice expired.";
+          return;
+        }
+
+        const statusRes = await fetch(
+          `${API_BASE}/invoices/${invoice.paymentHash}`,
+          { headers: { Authorization: `Bearer ${API_KEY}` } }
+        );
+        const { paid } = await statusRes.json();
+
+        if (paid) {
+          clearInterval(poll);
+          document.getElementById("qr").style.display = "none";
+          document.getElementById("status").style.display = "none";
+          document.getElementById("success").style.display = "block";
+        }
+      }, 3000);
+    }
+
+    init().catch(console.error);
+  </script>
+</body>
+</html>
+```
+
+<Warning>
+  The HTML example puts the API key directly in the browser. This is fine for local testing but **not safe for production**. In a real app, the invoice creation call should happen on your server, and only the `paymentRequest` and `paymentHash` should be sent to the browser.
+</Warning>
+
+---
+
+## Verifying your integration works
+
+Before going live, run through this checklist:
+
+1. **Register** — call `/auth/register` and confirm you receive an `apiKey`
+2. **Wallet check** — call `GET /api/v1/wallet` and confirm your wallet name and balance come back
+3. **Create a test invoice** — use a small amount (1 sat) with description `"Integration test"`
+4. **Pay it** — use a second Lightning wallet, paste the `paymentRequest`, and pay
+5. **Confirm detection** — poll `/api/v1/invoices/:hash` and verify `paid: true` appears within a few seconds of payment

@@ -1,0 +1,74 @@
+---
+title: "Lightning Network Concepts"
+description: "The key ideas behind Lightning payments — explained for developers, not node operators."
+---
+
+## Bitcoin and the speed problem
+
+Bitcoin's base layer was designed for security and decentralisation, not speed. A transaction submitted to the Bitcoin network takes roughly 10 minutes to confirm in a block, and during periods of high demand, fees can spike unpredictably. For everyday payments — buying a coffee, paying for a subscription, tipping a creator — this is impractical.
+
+The Lightning Network is Bitcoin's answer to this. It is a second layer that enables near-instant payments between parties without touching the base blockchain on every transaction.
+
+## How Lightning works (the short version)
+
+Two parties open a **payment channel** by locking some Bitcoin in a shared on-chain transaction. After that, they can send payments back and forth between themselves — or through a network of other channels — without touching the blockchain. Each payment updates a shared balance sheet. When they are done, they close the channel and settle the final balance on-chain.
+
+From a developer's perspective, you do not need to understand the channel mechanics to build on Lightning. What matters is the invoice model.
+
+## BOLT11 invoices
+
+When you want to receive a Lightning payment, you generate a **BOLT11 invoice**. BOLT11 is the standard format for Lightning payment requests — every Lightning wallet and node speaks it.
+
+A BOLT11 invoice is a long encoded string that always starts with `lnbc` on mainnet:
+
+```
+lnbc10u1pn2k3j4pp5a3f9bc2d1e4f5a6b7c8d9e0f...
+```
+
+Inside that string, encoded, are:
+
+- The amount to pay (in millisatoshis)
+- A description or description hash
+- An expiry time
+- The destination node's public key
+- A payment hash
+- A cryptographic signature
+
+The payer's wallet decodes this, finds a route through the Lightning Network, and sends the payment. You do not need to decode it yourself — just generate it and show it as a QR code.
+
+## Satoshis and millisatoshis
+
+Bitcoin is divisible down to 8 decimal places. The smallest unit on the base layer is a **satoshi** (1 sat = 0.00000001 BTC).
+
+Lightning goes one step further and uses **millisatoshis** (msats) internally — 1 satoshi = 1,000 millisatoshis. This allows sub-satoshi precision in routing fees, though invoices themselves are typically denominated in whole satoshis.
+
+When the LN-Breeze wallet endpoint returns a balance, it returns millisatoshis. Divide by 1,000 to get satoshis.
+
+```
+2,500,000 msats ÷ 1,000 = 2,500 sats
+```
+
+## Payment hashes
+
+Every Lightning invoice has a **payment hash** — a 64-character hex string that uniquely identifies it. It is derived from a secret (the payment preimage) that only the recipient knows.
+
+When a payment arrives, the recipient reveals the preimage. The network verifies it matches the hash. This is what makes Lightning payments trustless — the proof of payment is cryptographic.
+
+In LN-Breeze, the payment hash is how you track a specific invoice:
+- You create an invoice → receive a `paymentHash`
+- You poll `GET /api/v1/invoices/:hash` using that hash
+- When `paid: true` comes back, the payment has been cryptographically settled
+
+## Invoice expiry
+
+Every BOLT11 invoice has an expiry time. LN-Breeze sets this to **10 minutes** from creation. After expiry, the invoice cannot be paid — any attempt will be rejected by the Lightning Network.
+
+If a customer does not pay within the window, generate a new invoice. There is no way to extend a Lightning invoice's expiry after it has been created.
+
+## Why this matters for your integration
+
+Three things to keep in mind when building:
+
+1. **Generate invoices on demand** — do not pre-generate and cache them. Generate one when your customer is ready to pay.
+2. **Store the payment hash** — it is your only link between an invoice and a payment confirmation.
+3. **Handle expiry** — always track `expiresAt` and show the customer a clear message if the invoice expires before they pay. Let them generate a fresh one.

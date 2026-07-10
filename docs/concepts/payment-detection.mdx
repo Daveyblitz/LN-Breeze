@@ -1,0 +1,112 @@
+---
+title: "How Payment Detection Works"
+description: "WebSockets, polling, and how to know the exact moment a Lightning invoice gets paid."
+---
+
+## The challenge
+
+Once you show a customer a Lightning invoice QR code, you need to know the instant they pay it — without them having to click a button or refresh the page. Lightning payments settle in seconds, and your UI should reflect that.
+
+There are two ways to detect payment: **WebSockets** (event-driven, instant) and **polling** (request-based, slightly delayed). A production-grade integration uses both.
+
+## WebSockets — the primary method
+
+LNbits exposes a WebSocket endpoint at:
+
+```
+wss://your-lnbits-url/api/v1/ws/<walletId>
+```
+
+When you open a connection to this URL, LNbits streams events to you in real time. The moment a payment arrives on your wallet, LNbits emits a message containing the payment hash of the settled invoice.
+
+Your application receives that message, checks the hash against the active invoice, and if they match — payment confirmed. The entire flow from payment sent to your UI updating typically takes one to two seconds.
+
+```js
+const ws = new WebSocket(`wss://demo.lnbits.com/api/v1/ws/${walletId}`);
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  // LNbits sends the hash in different fields depending on version
+  const hash = data.payment_hash
+    ?? data.payment?.payment_hash
+    ?? data.checking_id;
+
+  if (hash === activePaymentHash) {
+    // Payment confirmed
+  }
+};
+```
+
+<Note>
+  LNbits has changed the shape of its WebSocket payment events across versions. Always check all three field paths (`payment_hash`, `payment.payment_hash`, `checking_id`) to support multiple LNbits versions.
+</Note>
+
+## Polling — the fallback
+
+WebSocket connections are not guaranteed to stay open. Mobile browsers background tabs, proxies time out, networks hiccup. When a WebSocket connection drops, you need a fallback.
+
+Polling calls `GET /api/v1/invoices/:hash` on a fixed interval — every 2 to 3 seconds — until the invoice is paid or expires. It is slightly less immediate than a WebSocket event but works reliably in any environment.
+
+```js
+const poll = setInterval(async () => {
+  const res = await fetch(`/api/v1/invoices/${paymentHash}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }
+  });
+  const { paid } = await res.json();
+  if (paid) {
+    clearInterval(poll);
+    handlePaymentConfirmed();
+  }
+}, 3000);
+```
+
+The right architecture activates polling only when the WebSocket is disconnected, and deactivates it when the WebSocket reconnects. This keeps server load low while maintaining reliability.
+
+## The dual-channel architecture
+
+LN-Breeze's own frontend uses both channels simultaneously in a layered approach:
+
+```
+Invoice generated
+    │
+    ├── WebSocket opens to LNbits
+    │     → listens for payment hash match
+    │     → on match: confirm payment, disconnect
+    │     → on disconnect: schedule reconnect with backoff (1s → 2s → 4s → max 30s)
+    │
+    └── Polling hook (starts disabled)
+          → activates when WebSocket disconnects
+          → deactivates when WebSocket reconnects
+          → polls every 3 seconds
+          → on paid: true — confirm payment, stop polling
+```
+
+Both channels call the same `handlePaymentConfirmed()` function. That function is **idempotent** — it checks whether payment has already been confirmed before doing anything, so even if both channels fire simultaneously, the confirmation only triggers once.
+
+## Reconnection with exponential backoff
+
+When a WebSocket closes unexpectedly, do not reconnect immediately in a tight loop — that hammers the server. Use exponential backoff: wait 1 second before the first retry, 2 seconds before the second, 4 before the third, and cap at 30 seconds.
+
+```js
+let backoffMs = 1000;
+
+ws.onclose = () => {
+  setTimeout(() => reconnect(), backoffMs);
+  backoffMs = Math.min(backoffMs * 2, 30_000);
+};
+
+ws.onopen = () => {
+  backoffMs = 1000; // reset on successful connection
+};
+```
+
+## What this means for your integration
+
+If you are using the LN-Breeze API:
+- **Use the polling endpoint** (`GET /api/v1/invoices/:hash`) for reliable payment detection
+- **Poll every 2–3 seconds** after showing the invoice QR code
+- **Stop polling** the moment `paid: true` is returned, or when `expiresAt` passes
+- **For real-time UX**, open a WebSocket directly to your LNbits instance alongside polling
+
+The polling endpoint is the simplest path. The WebSocket adds real-time feel for applications where the one-to-two second difference matters.

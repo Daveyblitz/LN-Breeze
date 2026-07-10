@@ -26,6 +26,21 @@
           {
             "group": "Getting Started",
             "pages": ["introduction", "quickstart", "authentication"]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/lightning",
+              "concepts/payment-detection",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/error-handling",
+              "guides/code-examples"
+            ]
           }
         ]
       },
@@ -33,13 +48,19 @@
         "tab": "API Reference",
         "groups": [
           {
-            "group": "Endpoints",
+            "group": "Authentication",
+            "pages": ["api-reference/auth/register"]
+          },
+          {
+            "group": "Invoices",
             "pages": [
-              "api-reference/auth/register",
               "api-reference/invoices/create",
-              "api-reference/invoices/status",
-              "api-reference/wallet/info"
+              "api-reference/invoices/status"
             ]
+          },
+          {
+            "group": "Wallet",
+            "pages": ["api-reference/wallet/info"]
           }
         ]
       }
