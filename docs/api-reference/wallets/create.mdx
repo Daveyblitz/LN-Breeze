@@ -4,6 +4,10 @@ api: "POST /api/v1/wallets"
 description: "Create a new LNbits wallet and get credentials back, ready to register with LN-Breeze."
 ---
 
+<Info>
+  All paths on this site are relative to **`https://ln-breeze.vercel.app`**. The full URL for this endpoint is `https://ln-breeze.vercel.app/api/v1/wallets`.
+</Info>
+
 ## Overview
 
 No LNbits account needed. Pass a wallet name and this endpoint creates a wallet on `demo.lnbits.com`, returning the credentials you need to call `/api/v1/auth/register`.
@@ -42,6 +46,16 @@ Use apiKey as Bearer token for all other endpoints
 <ResponseField name="lnbitsUrl" type="string">
   Always `https://demo.lnbits.com`. Pass this to `/api/v1/auth/register`.
 </ResponseField>
+
+## Postman / request body
+
+Paste this directly into Postman's **Body → raw → JSON** tab:
+
+```json
+{
+  "walletName": "My Shop Wallet"
+}
+```
 
 ## Examples
 

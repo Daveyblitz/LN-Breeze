@@ -5,6 +5,10 @@ description: "Generate a BOLT11 Lightning invoice that any Lightning wallet can 
 authMethod: "bearer"
 ---
 
+<Info>
+  All paths on this site are relative to **`https://ln-breeze.vercel.app`**. The full URL for this endpoint is `https://ln-breeze.vercel.app/api/v1/invoices`.
+</Info>
+
 ## Overview
 
 This endpoint creates a Lightning invoice for a given amount and description. It returns a BOLT11 payment request string — the standard format used across the entire Lightning Network. Any Lightning wallet (Phoenix, Wallet of Satoshi, BlueWallet, Muun, Zeus, etc.) can pay a BOLT11 invoice.
@@ -49,6 +53,19 @@ The invoice expires 10 minutes after creation. If unpaid after that window, a ne
 <ResponseField name="expiresAt" type="string">
   ISO 8601 timestamp marking when the invoice expires. Exactly 10 minutes from creation time. After this timestamp, the invoice cannot be paid and `paid` will always return `false`.
 </ResponseField>
+
+## Postman / request body
+
+Paste this directly into Postman's **Body → raw → JSON** tab:
+
+```json
+{
+  "amount": 1000,
+  "description": "Payment for logo design"
+}
+```
+
+Set the `Authorization` header to `Bearer YOUR_API_KEY` in Postman's **Auth → Bearer Token** tab.
 
 ## Examples
 

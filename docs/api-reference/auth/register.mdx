@@ -4,6 +4,10 @@ api: "POST /api/v1/auth/register"
 description: "Exchange your LNbits credentials for a signed LN-Breeze API key."
 ---
 
+<Info>
+  All paths on this site are relative to **`https://ln-breeze.vercel.app`**. The full URL for this endpoint is `https://ln-breeze.vercel.app/api/v1/auth/register`.
+</Info>
+
 ## Overview
 
 This is the only endpoint that does not require an API key. You call it once per wallet to receive your Bearer token. From that point on, every other API call uses that token — your raw LNbits credentials never need to travel over the network again.
@@ -45,6 +49,22 @@ LN-Breeze verifies your credentials against LNbits before issuing a key. If the 
 <ResponseField name="note" type="string">
   A reminder that the key will not be shown again.
 </ResponseField>
+
+## Postman / request body
+
+Paste this directly into Postman's **Body → raw → JSON** tab. Replace the placeholder values with your real LNbits credentials:
+
+```json
+{
+  "lnbitsUrl": "https://demo.lnbits.com",
+  "invoiceKey": "YOUR_INVOICE_KEY",
+  "walletId": "YOUR_WALLET_ID"
+}
+```
+
+<Tip>
+  Don't have credentials yet? Call `POST /api/v1/wallets` first — it creates a wallet and returns the `invoiceKey` and `walletId` for you.
+</Tip>
 
 ## Examples
 
