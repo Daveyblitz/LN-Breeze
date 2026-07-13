@@ -1,0 +1,116 @@
+---
+title: "Create Wallet"
+api: "POST /api/v1/wallets"
+description: "Create a new LNbits wallet and get credentials back, ready to register with LN-Breeze."
+---
+
+## Overview
+
+No LNbits account needed. Pass a wallet name and this endpoint creates a wallet on `demo.lnbits.com`, returning the credentials you need to call `/api/v1/auth/register`.
+
+This endpoint requires no API key — it is the first step in the onboarding flow.
+
+## Full onboarding flow
+
+```
+POST /api/v1/wallets       → { invoiceKey, walletId, lnbitsUrl }
+POST /api/v1/auth/register → { apiKey }
+       ↓
+Use apiKey as Bearer token for all other endpoints
+```
+
+## Request body
+
+<ParamField body="walletName" type="string" required>
+  A display name for the new wallet. Can be anything — `"My Shop"`, `"Test Wallet"`, `"Personal"`.
+</ParamField>
+
+## Response
+
+<ResponseField name="walletId" type="string">
+  The unique ID of the newly created wallet. Pass this to `/api/v1/auth/register`.
+</ResponseField>
+
+<ResponseField name="invoiceKey" type="string">
+  The Invoice/Read Key for the wallet. Pass this to `/api/v1/auth/register`.
+</ResponseField>
+
+<ResponseField name="walletName" type="string">
+  The display name of the wallet as confirmed by LNbits.
+</ResponseField>
+
+<ResponseField name="lnbitsUrl" type="string">
+  Always `https://demo.lnbits.com`. Pass this to `/api/v1/auth/register`.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://ln-breeze.vercel.app/api/v1/wallets \
+  -H "Content-Type: application/json" \
+  -d '{ "walletName": "My Shop Wallet" }'
+```
+
+```js JavaScript
+// Step 1 — Create wallet
+const walletRes = await fetch("https://ln-breeze.vercel.app/api/v1/wallets", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ walletName: "My Shop Wallet" }),
+});
+const { walletId, invoiceKey, lnbitsUrl } = await walletRes.json();
+
+// Step 2 — Register and get API key
+const registerRes = await fetch("https://ln-breeze.vercel.app/api/v1/auth/register", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ lnbitsUrl, invoiceKey, walletId }),
+});
+const { apiKey } = await registerRes.json();
+// Store apiKey — you're ready to create invoices
+```
+
+```python Python
+import requests
+
+# Step 1 — Create wallet
+wallet = requests.post(
+  "https://ln-breeze.vercel.app/api/v1/wallets",
+  json={"walletName": "My Shop"},
+).json()
+
+# Step 2 — Register
+register = requests.post(
+  "https://ln-breeze.vercel.app/api/v1/auth/register",
+  json={
+    "lnbitsUrl": wallet["lnbitsUrl"],
+    "invoiceKey": wallet["invoiceKey"],
+    "walletId": wallet["walletId"],
+  },
+).json()
+
+api_key = register["apiKey"]
+```
+
+</CodeGroup>
+
+## Response example
+
+```json
+{
+  "walletId": "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+  "invoiceKey": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+  "walletName": "My Shop Wallet",
+  "lnbitsUrl": "https://demo.lnbits.com"
+}
+```
+
+## Error responses
+
+| Status | Message | What happened |
+|---|---|---|
+| `400` | `walletName is required` | The `walletName` field is missing |
+| `400` | `Failed to create wallet` | LNbits rejected the request |
+| `500` | `Could not reach LNbits` | demo.lnbits.com was unreachable — try again shortly |

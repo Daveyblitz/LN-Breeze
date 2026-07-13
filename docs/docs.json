@@ -48,6 +48,10 @@
         "tab": "API Reference",
         "groups": [
           {
+            "group": "Wallets",
+            "pages": ["api-reference/wallets/create"]
+          },
+          {
             "group": "Authentication",
             "pages": ["api-reference/auth/register"]
           },
