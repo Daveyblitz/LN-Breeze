@@ -54,9 +54,7 @@ The invoice expires 10 minutes after creation. If unpaid after that window, a ne
   ISO 8601 timestamp marking when the invoice expires. Exactly 10 minutes from creation time. After this timestamp, the invoice cannot be paid and `paid` will always return `false`.
 </ResponseField>
 
-## Postman / request body
-
-Paste this directly into Postman's **Body → raw → JSON** tab:
+## Request body
 
 ```json
 {
@@ -64,8 +62,6 @@ Paste this directly into Postman's **Body → raw → JSON** tab:
   "description": "Payment for logo design"
 }
 ```
-
-Set the `Authorization` header to `Bearer YOUR_API_KEY` in Postman's **Auth → Bearer Token** tab.
 
 ## Examples
 

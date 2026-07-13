@@ -10,7 +10,9 @@ description: "Create a new LNbits wallet and get credentials back, ready to regi
 
 ## Overview
 
-No LNbits account needed. Pass a wallet name and this endpoint creates a wallet on `demo.lnbits.com`, returning the credentials you need to call `/api/v1/auth/register`.
+No LNbits account needed. Pass a wallet name and this endpoint creates a wallet on `demo.lnbits.com` by default, returning the credentials you need to call `/api/v1/auth/register`.
+
+If you have your own LNbits instance, pass its URL and the wallet will be created there instead.
 
 This endpoint requires no API key — it is the first step in the onboarding flow.
 
@@ -29,6 +31,27 @@ Use apiKey as Bearer token for all other endpoints
   A display name for the new wallet. Can be anything — `"My Shop"`, `"Test Wallet"`, `"Personal"`.
 </ParamField>
 
+<ParamField body="lnbitsUrl" type="string">
+  The LNbits instance to create the wallet on. Defaults to `https://demo.lnbits.com` if not provided. Must be a public HTTPS address — localhost and private IPs are blocked.
+
+  Pass this if you are self-hosting LNbits and want wallets created on your own instance.
+</ParamField>
+
+```json
+{
+  "walletName": "My Shop Wallet"
+}
+```
+
+To use your own LNbits instance:
+
+```json
+{
+  "walletName": "My Shop Wallet",
+  "lnbitsUrl": "https://lnbits.yourdomain.com"
+}
+```
+
 ## Response
 
 <ResponseField name="walletId" type="string">
@@ -44,18 +67,8 @@ Use apiKey as Bearer token for all other endpoints
 </ResponseField>
 
 <ResponseField name="lnbitsUrl" type="string">
-  Always `https://demo.lnbits.com`. Pass this to `/api/v1/auth/register`.
+  The LNbits instance URL the wallet was created on. Pass this directly to `/api/v1/auth/register`.
 </ResponseField>
-
-## Postman / request body
-
-Paste this directly into Postman's **Body → raw → JSON** tab:
-
-```json
-{
-  "walletName": "My Shop Wallet"
-}
-```
 
 ## Examples
 
@@ -126,5 +139,6 @@ api_key = register["apiKey"]
 | Status | Message | What happened |
 |---|---|---|
 | `400` | `walletName is required` | The `walletName` field is missing |
-| `400` | `Failed to create wallet` | LNbits rejected the request |
-| `500` | `Could not reach LNbits` | demo.lnbits.com was unreachable — try again shortly |
+| `400` | `Invalid LNbits URL` | The `lnbitsUrl` provided is not a valid public HTTPS address |
+| `400` | `Failed to create wallet` | LNbits rejected the request — the instance may not support open wallet creation |
+| `500` | `Could not reach LNbits` | The LNbits instance was unreachable — try again shortly |

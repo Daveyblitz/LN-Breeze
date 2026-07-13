@@ -50,9 +50,7 @@ LN-Breeze verifies your credentials against LNbits before issuing a key. If the 
   A reminder that the key will not be shown again.
 </ResponseField>
 
-## Postman / request body
-
-Paste this directly into Postman's **Body → raw → JSON** tab. Replace the placeholder values with your real LNbits credentials:
+## Request body
 
 ```json
 {
@@ -63,7 +61,7 @@ Paste this directly into Postman's **Body → raw → JSON** tab. Replace the pl
 ```
 
 <Tip>
-  Don't have credentials yet? Call `POST /api/v1/wallets` first — it creates a wallet and returns the `invoiceKey` and `walletId` for you.
+  Don't have an LNbits wallet yet? Call `POST /api/v1/wallets` first — it creates one and returns the `invoiceKey`, `walletId`, and `lnbitsUrl` ready to paste here.
 </Tip>
 
 ## Examples

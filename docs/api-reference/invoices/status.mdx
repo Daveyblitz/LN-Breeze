@@ -33,16 +33,6 @@ Poll it on an interval — every 2 to 3 seconds is a good balance between respon
   `true` if the invoice has been settled. `false` if it is still pending or has expired unpaid. Once `true`, it will always be `true` — Lightning payments are final.
 </ResponseField>
 
-## Postman setup
-
-This is a GET request — no body needed. In Postman:
-
-1. Set method to **GET**
-2. URL: `https://ln-breeze.vercel.app/api/v1/invoices/PASTE_PAYMENT_HASH_HERE`
-3. **Auth → Bearer Token** → paste your API key
-
-The `paymentHash` comes from the response of `POST /api/v1/invoices`.
-
 ## Examples
 
 <CodeGroup>

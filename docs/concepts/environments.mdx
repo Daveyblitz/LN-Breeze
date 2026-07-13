@@ -1,0 +1,66 @@
+---
+title: "Environments"
+description: "The difference between demo.lnbits.com and a self-hosted LNbits instance — and when each is appropriate."
+---
+
+## Two ways to use LN-Breeze
+
+LN-Breeze sits on top of LNbits, which means the environment you use is really about which LNbits instance your wallet lives on. There are two options.
+
+## demo.lnbits.com (default)
+
+`demo.lnbits.com` is a public LNbits instance run by the LNbits team. It is free, requires no setup, and works immediately.
+
+```json
+POST /api/v1/wallets
+{ "walletName": "My Wallet" }
+```
+
+No `lnbitsUrl` needed — the demo instance is the default.
+
+**What it is good for:**
+- Learning the API
+- Building and testing your integration
+- Personal projects with low stakes
+
+**What to watch out for:**
+- The demo instance can go down without notice — it is a shared public server
+- Wallets and data may be reset periodically
+- Not suitable for accepting real money in a production app
+
+## Self-hosted LNbits
+
+Anyone can run their own copy of LNbits on a server they control. When you do, your wallets live on your instance — your data, your uptime, your rules.
+
+```json
+POST /api/v1/wallets
+{
+  "walletName": "My Wallet",
+  "lnbitsUrl": "https://lnbits.yourdomain.com"
+}
+```
+
+Pass your instance URL in the `lnbitsUrl` field of `/api/v1/wallets`. The wallet is created there and the credentials come back ready for `/api/v1/auth/register`.
+
+If you already have a wallet on your own instance, skip `/api/v1/wallets` entirely and go straight to `/api/v1/auth/register` with your `lnbitsUrl`, `invoiceKey`, and `walletId`.
+
+**What it gives you:**
+- Reliable uptime you control
+- No surprise resets
+- Appropriate for production use with real sats
+
+**What it requires:**
+- A server (a cheap VPS works — LNbits is lightweight)
+- A domain with HTTPS — LN-Breeze blocks HTTP and private IP addresses for security
+
+## How to tell which you are on
+
+The `lnbitsUrl` field in every API response tells you. If it says `https://demo.lnbits.com`, you are on the shared demo. If it is your own domain, you are self-hosted.
+
+## Switching instances
+
+Your LN-Breeze API key is tied to the wallet it was registered with. To switch to a different LNbits instance, call `/api/v1/auth/register` again with the new credentials — you will get a new API key. The old key stops working for the old wallet but the wallet itself is unaffected on LNbits.
+
+<Warning>
+  Lightning funds live on LNbits, not in LN-Breeze. Switching instances does not move your balance. If you have sats on a demo wallet and want to move to a self-hosted instance, withdraw them first via your LNbits wallet dashboard.
+</Warning>

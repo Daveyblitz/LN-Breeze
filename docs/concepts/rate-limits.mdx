@@ -1,0 +1,64 @@
+---
+title: "Rate Limits"
+description: "What happens when you make too many requests, and how to handle it gracefully."
+---
+
+## Where rate limits come from
+
+LN-Breeze itself does not enforce rate limits — it is a thin API layer. The limits you will encounter come from **LNbits**, specifically whichever instance your wallet is on.
+
+## demo.lnbits.com limits
+
+The demo instance is a shared public server. It does not publish an official rate limit, but in practice aggressive polling or rapid invoice creation can result in slower responses or temporary blocks.
+
+The most common way to hit limits on demo.lnbits.com is **polling too aggressively**. If you poll the invoice status endpoint faster than every 2–3 seconds, you are making unnecessary requests and will eventually get throttled.
+
+```
+✓ Poll every 3 seconds    — safe and responsive
+✗ Poll every 500ms        — unnecessary, will eventually cause problems
+```
+
+## Self-hosted LNbits limits
+
+If you run your own LNbits instance, rate limits are whatever you configure. A self-hosted instance with only your traffic will rarely be a concern.
+
+## What a rate limit response looks like
+
+If LNbits rate limits a request, LN-Breeze will return a `500` error with the message from LNbits passed through. You may also see `429 Too Many Requests` depending on the LNbits version.
+
+```json
+{
+  "error": "Too many requests"
+}
+```
+
+## How to handle it in code
+
+The right response to a rate limit is to back off and retry — not to retry immediately in a loop.
+
+```js
+async function pollWithBackoff(paymentHash, apiKey, attempt = 0) {
+  const delay = Math.min(3000 * Math.pow(1.5, attempt), 30_000);
+
+  await new Promise(resolve => setTimeout(resolve, delay));
+
+  const res = await fetch(`https://ln-breeze.vercel.app/api/v1/invoices/${paymentHash}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  // If rate limited, back off further
+  if (res.status === 429 || res.status === 500) {
+    return pollWithBackoff(paymentHash, apiKey, attempt + 1);
+  }
+
+  const { paid } = await res.json();
+  return paid;
+}
+```
+
+## Practical advice
+
+- **Poll every 3 seconds** — fast enough to feel instant to a user, slow enough to never cause problems
+- **Stop polling immediately** once `paid: true` is returned — there is nothing left to check
+- **Stop polling on expiry** — once `expiresAt` passes, the invoice cannot be paid; continuing to poll wastes requests
+- **Do not create invoices in bulk** — create one invoice per checkout, not speculatively in advance

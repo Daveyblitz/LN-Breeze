@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateLnbitsUrl } from "@/lib/validate-url";
 
-const LNBITS_URL = "https://demo.lnbits.com";
+const DEFAULT_LNBITS_URL = "https://demo.lnbits.com";
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletName } = await req.json();
+    const { walletName, lnbitsUrl } = await req.json();
 
     if (!walletName) {
       return NextResponse.json(
@@ -13,9 +14,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const targetUrl = lnbitsUrl || DEFAULT_LNBITS_URL;
+
+    if (lnbitsUrl && !validateLnbitsUrl(lnbitsUrl)) {
+      return NextResponse.json(
+        { error: "Invalid LNbits URL — must be a public HTTPS address" },
+        { status: 400 }
+      );
+    }
+
     const username = `user_${Math.random().toString(36).slice(2, 9)}`;
 
-    const res = await fetch(`${LNBITS_URL}/api/v1/account`, {
+    const res = await fetch(`${targetUrl}/api/v1/account`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, wallet_name: walletName }),
@@ -37,7 +47,7 @@ export async function POST(req: NextRequest) {
         walletId: wallet.id,
         invoiceKey: wallet.inkey,
         walletName: wallet.name ?? walletName,
-        lnbitsUrl: LNBITS_URL,
+        lnbitsUrl: targetUrl,
       },
       { status: 201 }
     );

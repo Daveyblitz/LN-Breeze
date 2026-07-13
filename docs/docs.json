@@ -32,6 +32,8 @@
             "pages": [
               "concepts/lightning",
               "concepts/payment-detection",
+              "concepts/environments",
+              "concepts/rate-limits",
               "concepts/security"
             ]
           },
